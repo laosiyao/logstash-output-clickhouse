@@ -54,11 +54,12 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     @logger.info("Running #{@plugin_name} version #{@plugin_version}")
 
     @logger.info("Initialized clickhouse with settings",
+      :table => @table,
       :flush_size => @flush_size,
       :idle_flush_time => @idle_flush_time,
       :request_tokens => @pool_max,
       :http_hosts => @http_hosts,
-      :http_query => @http_query,
+#       :http_query => @http_query,
       :headers => request_headers)
   end
 
@@ -73,7 +74,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     @request_tokens = SizedQueue.new(@pool_max)
     @pool_max.times {|t| @request_tokens << true }
     @requests = Array.new
-    @http_query = "/?query=INSERT%20INTO%20#{table}%20FORMAT%20JSONEachRow"
+#     @http_query = "/?query=INSERT%20INTO%20#{table}%20FORMAT%20JSONEachRow"
 
     @hostnames_pool =
       parse_http_hosts(http_hosts,
@@ -149,15 +150,32 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
 
   public
   def flush(events, close=false)
-    documents = ""  #this is the string of hashes that we push to Fusion as documents
+#     documents = ""  #this is the string of hashes that we push to Fusion as documents
+    documentHash = Hash.new
 
     events.each do |event|
-        documents << LogStash::Json.dump( mutate( event.to_hash() ) ) << "\n"
+        # @table 格式可能是具体表名或： %{logType} ，其中logType为event里真实存在的字段
+        # see  https://www.rubydoc.info/gems/logstash-event/1.1.5/LogStash/Event#sprintf-instance_method
+        tableName = event.sprintf(@table)
+        if documentHash[tableName] == nil
+            documentHash[tableName] = ""
+        end
+
+        eventJson = LogStash::Json.dump( mutate( event.to_hash() ) )
+        @logger.debug("Get event ", :eventJson => eventJson)
+        documentHash[tableName] << eventJson << "\n"
+
     end
 
     hosts = get_host_addresses()
 
-    make_request(documents, hosts, @http_query, 1, 1, hosts.sample)
+    documentHash.each do |key, value|
+#         @logger.debug( "#{key} is #{value}")
+        http_query_format = "/?query=INSERT%20INTO%20#{key}%20FORMAT%20JSONEachRow"
+        @logger.debug("======== !!! send  ", :http_query_format => http_query_format)
+        make_request(value, hosts, http_query_format, 1, 1, hosts.sample)
+    end
+
   end
 
   private
