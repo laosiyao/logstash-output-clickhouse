@@ -19,6 +19,12 @@ Please note that the name of the plugin when used is `clickhouse`, it only suppo
         }
       }
     }
+    
+table can be a format string , like
+
+    table => "%{tableName}"
+
+note that "tableName" is a field in event, represent table name
 
 ## Other custom options
 * `save_on_failure` (default: true) - enable / disable request body save on failure
