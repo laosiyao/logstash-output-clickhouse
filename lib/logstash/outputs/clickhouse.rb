@@ -237,6 +237,8 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
           log_failure(
               "Encountered non-200 HTTP code #{response.code}",
               :response_code => response.code,
+              :message => response.message,
+              :body => response.body,
               :url => url,
               :size => documents.length,
               :uuid => uuid)
